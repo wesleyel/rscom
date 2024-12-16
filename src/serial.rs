@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use tokio_serial::{available_ports, SerialPortInfo};
+use tokio_serial::{available_ports, SerialPortBuilderExt, SerialPortInfo, SerialStream};
 
 use crate::err::RSComError;
 use strum::EnumIter;
@@ -46,3 +46,9 @@ pub fn list_serial_ports() -> Result<Vec<SerialPortInfo>, RSComError> {
     let ports = available_ports()?;
     Ok(ports)
 }
+
+pub fn open_serial_port(port: &str, baudrate: Baudrate) -> Result<SerialStream, RSComError> {
+    let port = tokio_serial::new(port, baudrate.into()).open_native_async()?;
+    Ok(port)
+}
+

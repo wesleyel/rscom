@@ -1,6 +1,7 @@
 use strum::IntoEnumIterator;
+use tokio_serial::SerialStream;
 
-use crate::serial::{list_serial_ports, Baudrate};
+use crate::serial::{list_serial_ports, open_serial_port, Baudrate};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -16,7 +17,8 @@ pub struct TemplateApp {
     baudrate: Baudrate,
 
     #[serde(skip)]
-    serial: Option<Box<dyn tokio_serial::SerialPort>>,
+    serial: Option<SerialStream>,
+    serial_output: String,
 }
 
 impl Default for TemplateApp {
@@ -28,6 +30,7 @@ impl Default for TemplateApp {
             serial_port: "".to_owned(),
             baudrate: Baudrate::Baud115200,
             serial: None,
+            serial_output: "".to_owned(),
         }
     }
 }
@@ -75,10 +78,7 @@ impl eframe::App for TemplateApp {
                 // 终端窗口
                 ui.vertical(|ui| {
                     ui.label("终端窗口");
-                    ui.text_edit_multiline(&mut self.label);
-                    if ui.button("发送命令").clicked() {
-                        // 处理命令发送逻辑
-                    }
+                    ui.text_edit_multiline(&mut self.serial_output);
                 });
 
                 // 命令编写窗口
@@ -122,6 +122,13 @@ impl eframe::App for TemplateApp {
                             );
                         }
                     });
+
+                // 连接按钮
+                if ui.button("连接").clicked() {
+                    if let Ok(serial) = open_serial_port(&self.serial_port, self.baudrate) {
+                        self.serial = Some(serial);
+                    }
+                }
             });
         });
     }
