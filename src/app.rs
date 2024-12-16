@@ -1,3 +1,7 @@
+use strum::IntoEnumIterator;
+
+use crate::serial::{list_serial_ports, Baudrate};
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -5,8 +9,14 @@ pub struct TemplateApp {
     // Example stuff:
     label: String,
 
-    #[serde(skip)] // This how you opt-out of serialization of a field
+    #[serde(skip)]
     value: f32,
+
+    serial_port: String,
+    baudrate: Baudrate,
+
+    #[serde(skip)]
+    serial: Option<Box<dyn tokio_serial::SerialPort>>,
 }
 
 impl Default for TemplateApp {
@@ -15,6 +25,9 @@ impl Default for TemplateApp {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
+            serial_port: "".to_owned(),
+            baudrate: Baudrate::Baud115200,
+            serial: None,
         }
     }
 }
@@ -60,18 +73,18 @@ impl eframe::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 // 终端窗口
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.label("终端输出...");
+                ui.vertical(|ui| {
+                    ui.label("终端窗口");
                     ui.text_edit_multiline(&mut self.label);
+                    if ui.button("发送命令").clicked() {
+                        // 处理命令发送逻辑
+                    }
                 });
 
                 // 命令编写窗口
                 ui.vertical(|ui| {
                     ui.label("命令编写");
-                    ui.text_edit_multiline(&mut self.label); // 用于输入命令
-                    if ui.button("发送命令").clicked() {
-                        // 处理命令发送逻辑
-                    }
+                    ui.text_edit_multiline(&mut self.label);
                 });
             });
         });
@@ -79,37 +92,37 @@ impl eframe::App for TemplateApp {
         egui::TopBottomPanel::bottom("config_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 // 串口选择
-                ui.label("选择串口:");
-                egui::ComboBox::from_label("")
-                    .selected_text("9600") // 默认选择
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.label, "COM1".to_string(), "COM1");
-                        ui.selectable_value(&mut self.label, "COM2".to_string(), "COM2");
-                        // 添加更多串口选项
-                    });
+                ui.label("串口:");
+                if let Ok(ports) = list_serial_ports() {
+                    egui::ComboBox::new("Combo_port", "")
+                        .selected_text(format!("{}", self.serial_port))
+                        .show_ui(ui, |ui| {
+                            for port in ports {
+                                ui.selectable_value(
+                                    &mut self.serial_port,
+                                    port.port_name.clone(),
+                                    &port.port_name,
+                                );
+                            }
+                        });
+                } else {
+                    ui.label("无法获取串口信息");
+                }
 
                 // 波特率设置
                 ui.label("波特率:");
-                ui.add(
-                    egui::DragValue::new(&mut self.value)
-                        .speed(1.0)
-                        .clamp_range(300..=115200),
-                );
+                egui::ComboBox::new("Combo_rate", "")
+                    .selected_text(format!("{}", self.baudrate))
+                    .show_ui(ui, |ui| {
+                        for rate in Baudrate::iter() {
+                            ui.selectable_value(
+                                &mut self.baudrate,
+                                rate,
+                                format!("{}", rate),
+                            );
+                        }
+                    });
             });
         });
     }
-}
-
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
 }
